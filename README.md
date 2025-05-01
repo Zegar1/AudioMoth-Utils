@@ -9,7 +9,7 @@ The module should be imported as normal:
 var audiomothUtils = require('audiomoth-utils');
 ```
 
-#### Expanding, Splitting, Downsampling and Syncing ####
+#### Expanding, Splitting, Downsampling, Aligning and Syncing ####
 
 Expand an AudioMoth T.WAV recording (a recording with amplitude thresholding or frequency triggering applied):
 
@@ -39,6 +39,21 @@ Downsample an AudioMoth WAV file to a lower sample rate:
 audiomothUtils.downsample(inputPath, outputPath, prefix, requestedSampleRate, (progress) => {
     console.log(progress + '% completed');
 }));
+```
+
+To be identified as an AudioMoth WAV file, a recording must fit the regex `/^(\d\d\d\d\d\d\d\d_)?\d\d\d\d\d\d.WAV$/` and have the correct WAV header comment.
+
+---
+Align an AudioMoth WAV file recorded with the standard firmware with an associated GPS.TXT file:
+
+```javascript
+audiomothUtils.initialise(inputPath); // Path to GPS.TXT file
+
+audiomothUtils.align(inputPath, outputPath, prefix, onlyProcessFilesBetweenFixes, (progress) => {
+    console.log(progress + '% completed');
+}));
+
+audiomothUtils.finalise(outputPath); // Path to generated GPS.CSV file
 ```
 
 To be identified as an AudioMoth WAV file, a recording must fit the regex `/^(\d\d\d\d\d\d\d\d_)?\d\d\d\d\d\d.WAV$/` and have the correct WAV header comment.

@@ -44,12 +44,14 @@ audiomothUtils.downsample(inputPath, outputPath, prefix, requestedSampleRate, (p
 To be identified as an AudioMoth WAV file, a recording must fit the regex `/^(\d\d\d\d\d\d\d\d_)?\d\d\d\d\d\d.WAV$/` and have the correct WAV header comment.
 
 ---
-Align an AudioMoth WAV file recorded with the standard firmware with an associated GPS.TXT file. First parse the relevant GPS.TXT file:
+Align an AudioMoth WAV file recorded with the standard firmware. First parse the associated GPS.TXT file:
+
 ```javascript
 audiomothUtils.initialise(inputPath);
 ```
 
 Then align each individual WAV file.
+
 ```
 audiomothUtils.align(inputPath, outputPath, prefix, onlyProcessFilesBetweenFixes, (progress) => {
     console.log(progress + '% completed');
@@ -57,6 +59,7 @@ audiomothUtils.align(inputPath, outputPath, prefix, onlyProcessFilesBetweenFixes
 ```
 
 Finally, generate the summary GPS.CSV output file.
+
 ```
 audiomothUtils.finalise(outputPath);
 ```

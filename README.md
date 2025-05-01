@@ -47,13 +47,13 @@ To be identified as an AudioMoth WAV file, a recording must fit the regex `/^([A
 Align an AudioMoth WAV file recorded with the standard firmware. First parse the associated GPS.TXT file:
 
 ```javascript
-audiomothUtils.initialise(inputPath);
+audiomothUtils.aligner.initialise(inputPath);
 ```
 
 Then align each individual WAV file.
 
 ```javascript
-audiomothUtils.align(inputPath, outputPath, prefix, onlyProcessFilesBetweenFixes, (progress) => {
+audiomothUtils.aligner.align(inputPath, outputPath, prefix, onlyProcessFilesBetweenFixes, (progress) => {
     console.log(progress + '% completed');
 }));
 ```
@@ -61,7 +61,7 @@ audiomothUtils.align(inputPath, outputPath, prefix, onlyProcessFilesBetweenFixes
 Finally, generate the summary GPS.CSV output file.
 
 ```javascript
-audiomothUtils.finalise(outputPath);
+audiomothUtils.aligner.finalise(outputPath);
 ```
 
 To be identified as an AudioMoth WAV file, a recording must fit the regex `/^([0-9A-F]{16}_)?(\d{8}_\d{6})\.WAV$/` and have the correct WAV header comment.

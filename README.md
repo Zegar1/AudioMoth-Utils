@@ -52,7 +52,7 @@ audiomothUtils.initialise(inputPath);
 
 Then align each individual WAV file.
 
-```
+```javascript
 audiomothUtils.align(inputPath, outputPath, prefix, onlyProcessFilesBetweenFixes, (progress) => {
     console.log(progress + '% completed');
 }));
@@ -60,7 +60,7 @@ audiomothUtils.align(inputPath, outputPath, prefix, onlyProcessFilesBetweenFixes
 
 Finally, generate the summary GPS.CSV output file.
 
-```
+```javascript
 audiomothUtils.finalise(outputPath);
 ```
 

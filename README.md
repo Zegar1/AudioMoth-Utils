@@ -41,7 +41,7 @@ audiomothUtils.downsample(inputPath, outputPath, prefix, requestedSampleRate, (p
 }));
 ```
 
-To be identified as an AudioMoth WAV file, a recording must fit the regex `/^([A-Za-z-_0-9]+_)?(\d{8}_\d{6})((_\d{3})|(_SYNC))?\.WAV$/` and have the correct WAV header comment.
+To be identified as an AudioMoth WAV file, a recording must fit the regex `/^([A-Za-z-_0-9]+_)?(\d{8}_\d{6})((_\d{3})|(_SYNC))?\.WAV$/`.
 
 ---
 Align an AudioMoth WAV file recorded with the standard firmware. First parse the associated GPS.TXT file:

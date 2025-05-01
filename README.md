@@ -19,7 +19,7 @@ audiomothUtils.expand(inputPath, outputPath, prefix, expansionType, maximumFileD
 }));
 ```
 
-To be identified as an AudioMoth T.WAV file, a recording must fit the regex `/^(\d\d\d\d\d\d\d\d_)?\d\d\d\d\d\dT.WAV$/` and have the correct WAV header comment.
+To be identified as an AudioMoth T.WAV file, a recording must fit the regex `/^([0-9A-F]{16}_)?((\d{8}_)?\d{6})T\.WAV$/` and have the correct WAV header comment.
 
 ---
 Split an AudioMoth WAV file into a number of smaller files:

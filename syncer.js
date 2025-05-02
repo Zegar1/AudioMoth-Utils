@@ -33,6 +33,14 @@ const HEADER_BUFFER_SIZE = 32 * 1024;
 
 const FILE_BUFFER_SIZE = 1024 * 1024;
 
+/* RIFF constants */
+
+const UINT32_LENGTH = 4;
+
+const RIFF_ID_LENGTH = 4;
+
+const MAXIMUM_GUANO_SIZE = 1024;
+
 /* Time constants */
 
 const HERTZ_IN_KILOHERTZ = 1000;
@@ -73,6 +81,12 @@ const MAXIMUM_ALLOWABLE_PPS_OFFSET = (PPS_CLOCK_TICK_OFFSET / CLOCK_FREQUENCY * 
 
 const MAXIMUM_ALLOWABLE_TIMESTAMP_DIFFERENCE = 500;
 
+/* Timestamp constants */
+
+const GUANO_TIMESTAMP_REGEX = /\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/;
+
+const FILENAME_TIMESTAMP_REGEX = /\d{8}_\d{6}/;
+
 /* Buffers for reading data */
 
 const headerBuffer = Buffer.alloc(HEADER_BUFFER_SIZE);
@@ -84,6 +98,26 @@ function digits (value, number) {
     const string = '00000' + value;
 
     return string.substring(string.length - number);
+
+}
+
+function formatFilenameTimestamp (timestamp) {
+
+    const date = new Date(timestamp);
+
+    let string = date.getUTCFullYear() + digits(date.getUTCMonth() + 1, 2) + digits(date.getUTCDate(), 2) + '_' + digits(date.getUTCHours(), 2) + digits(date.getUTCMinutes(), 2) + digits(date.getUTCSeconds(), 2);
+
+    return string;
+
+}
+
+function formatGuanoTimestamp (timestamp) {
+
+    const date = new Date(timestamp);
+
+    const string = date.getUTCFullYear() + '-' + digits(date.getUTCMonth() + 1, 2) + '-' + digits(date.getUTCDate(), 2) + 'T' + digits(date.getUTCHours(), 2) + ':' + digits(date.getUTCMinutes(), 2) + ':' + digits(date.getUTCSeconds(), 2);
+
+    return string;
 
 }
 
@@ -999,19 +1033,6 @@ function sync (inputPath, outputPath, prefix, resampleRate, autoResolve, callbac
 
     }
 
-    /* Check the maximum file size */
-
-    const calculatedFileSize = header.size + numberOfSamplesToWrite * NUMBER_OF_BYTES_IN_SAMPLE;
-
-    if (calculatedFileSize > UINT32_MAX) {
-
-        return {
-            success: false,
-            error: 'Generated WAV file would exceed maximum WAV file size.'
-        };
-
-    }
-
     /* Read the GUANO if present */
 
     let guano;
@@ -1048,16 +1069,86 @@ function sync (inputPath, outputPath, prefix, resampleRate, autoResolve, callbac
 
     }
 
+    /* Check the number of files to write */
+
+    const outputFiles = [];
+
+    let file = {
+        number: 1,
+        seconds: 0,
+        timestamp: originalTimestamp
+    };
+
+    outputFiles.push(file);
+
+    let numberOfSeconds = 0;
+
+    let numberOfSamplesInFile = 0;
+
+    const maximumDataSize = UINT32_MAX + UINT32_LENGTH + RIFF_ID_LENGTH - MAXIMUM_GUANO_SIZE - header.size;
+
+    const maximumNumberOfSamples = Math.floor(maximumDataSize / NUMBER_OF_BYTES_IN_SAMPLE);
+
+    for (let i = 0; i < numberOfIntervals; i += 1) {
+
+        const interval = intervals[i];
+
+        for (let j = 0; j < interval.timeInterval; j += 1) {
+
+            const potentialNumberOfSamplesInFile = numberOfSamplesInFile + targetSampleRate;
+
+            if (potentialNumberOfSamplesInFile > maximumNumberOfSamples) {
+
+                file.samples = numberOfSamplesInFile;
+
+                file = {
+                    number: outputFiles.length + 1,
+                    seconds: numberOfSeconds,
+                    timestamp: originalTimestamp + numberOfSeconds * MILLISECONDS_IN_SECOND                   
+                }
+
+                outputFiles.push(file);
+
+                numberOfSamplesInFile = targetSampleRate;
+
+            } else {
+            
+                numberOfSamplesInFile = potentialNumberOfSamplesInFile;
+
+            }
+
+            numberOfSeconds += 1;
+
+        }
+
+    }
+
+    file.samples = numberOfSamplesInFile;
+
+    const numberOfFiles = outputFiles.length;
+
+    if (DEBUG) console.log(outputFiles);
+
     /* Update the header */
 
     wavHandler.updateSampleRate(header, targetSampleRate);
 
-    wavHandler.updateSizes(header, guano, numberOfSamplesToWrite * NUMBER_OF_BYTES_IN_SAMPLE);
+    wavHandler.updateSizes(header, guano, outputFiles[0].samples * NUMBER_OF_BYTES_IN_SAMPLE);
+
+    if (outputFiles.length > 1) {
+
+        const comment = 'Synchronised from ' + path.basename(inputPath) + ' as file 1 of ' + numberOfFiles + '.';
+
+        wavHandler.updateComment(header, comment);
+
+    }
 
     wavHandler.writeHeader(headerBuffer, header);
 
     /* Allocate space for input and output */
 
+    let progress = 0;
+    
     let maximumTimeInterval = 0;
 
     for (let i = 0; i < numberOfIntervals; i += 1) {
@@ -1072,187 +1163,270 @@ function sync (inputPath, outputPath, prefix, resampleRate, autoResolve, callbac
 
     const syncOutputBuffer = Buffer.alloc(FILE_BUFFER_SIZE);
 
-    /* Open the output file and write the header */
+    try {
 
-    const fo = fs.openSync(path.join(outputPath, outputFilename), 'w');
+        /* Open the output file and write the header */
 
-    fs.writeSync(fo, headerBuffer, 0, header.size, null);
+        let fo = fs.openSync(path.join(outputPath, outputFilename), 'w');
 
-    /* Reset the input file to end of header */
+        fs.writeSync(fo, headerBuffer, 0, header.size, null);
 
-    fs.readSync(fi, headerBuffer, 0, header.size, null);
+        /* Reset the input file to end of header */
 
-    /* Read the first file buffer */
+        fs.readSync(fi, headerBuffer, 0, header.size, null);
 
-    fs.readSync(fi, syncInputBuffer, 0, FILE_BUFFER_SIZE, null);
+        /* Read the first file buffer */
 
-    /* Set up the counters */
+        fs.readSync(fi, syncInputBuffer, 0, FILE_BUFFER_SIZE, null);
 
-    let progress = 0;
+        /* Set up the counters */
 
-    let inputBufferIndex = 0;
+        let inputBufferIndex = 0;
 
-    let outputBufferIndex = 0;
+        let outputBufferIndex = 0;
 
-    let numberOfSamplesRead = 0;
+        let numberOfSamplesRead = 0;
 
-    let numberOfSamplesWritten = 0;
+        let numberOfSamplesWritten = 0;
 
-    /* Function to read sample values */
+        /* Function to read sample values */
 
-    function readSampleValue () {
+        function readSampleValue () {
 
-        const sampleValue = readInt16(syncInputBuffer, inputBufferIndex * NUMBER_OF_BYTES_IN_SAMPLE);
+            const sampleValue = readInt16(syncInputBuffer, inputBufferIndex * NUMBER_OF_BYTES_IN_SAMPLE);
 
-        numberOfSamplesRead += 1;
+            numberOfSamplesRead += 1;
 
-        inputBufferIndex += 1;
+            inputBufferIndex += 1;
 
-        if (inputBufferIndex === FILE_BUFFER_SIZE / NUMBER_OF_BYTES_IN_SAMPLE) {
+            if (inputBufferIndex === FILE_BUFFER_SIZE / NUMBER_OF_BYTES_IN_SAMPLE) {
 
-            fs.readSync(fi, syncInputBuffer, 0, FILE_BUFFER_SIZE, null);
+                fs.readSync(fi, syncInputBuffer, 0, FILE_BUFFER_SIZE, null);
 
-            inputBufferIndex = 0;
-
-        }
-
-        return sampleValue;
-
-    }
-
-    /* Function to write sample value */
-
-    function writeSampleValue (value) {
-
-        writeInt16(syncOutputBuffer, outputBufferIndex * NUMBER_OF_BYTES_IN_SAMPLE, value);
-
-        numberOfSamplesWritten += 1;
-
-        outputBufferIndex += 1;
-
-        if (outputBufferIndex === FILE_BUFFER_SIZE / NUMBER_OF_BYTES_IN_SAMPLE) {
-
-            fs.writeSync(fo, syncOutputBuffer, 0, FILE_BUFFER_SIZE, null);
-
-            outputBufferIndex = 0;
-
-        }
-
-    }
-
-    /* Set up initial values */
-
-    let nextSampleValue = readSampleValue();
-
-    let previousSampleValue = nextSampleValue;
-
-    totalNumberOfSamples = firstSampleIsBeforeFirstInterval ? 1 : 0;
-
-    if (firstSampleIsBeforeFirstInterval) nextSampleValue = readSampleValue();
-
-    /* Iterate through intervals */
-
-    for (let i = 0; i < numberOfIntervals; i += 1) {
-
-        const interval = intervals[i];
-
-        totalNumberOfSamples += interval.numberOfSamples;
-
-        let nextSampleOffset = interval.firstSampleGap / MICROSECONDS_IN_SECOND;
-
-        let previousSampleOffset = nextSampleOffset - sampleInterval / MICROSECONDS_IN_SECOND;
-
-        const timeInterval = interval.timeInterval;
-
-        const numberOfSamples = timeInterval * targetSampleRate;
-
-        for (let j = 0; j < numberOfSamples; j += 1) {
-
-            const currentOffset = j / numberOfSamples * timeInterval;
-
-            while (currentOffset > nextSampleOffset) {
-
-                /* Update previous sample values */
-
-                previousSampleOffset = nextSampleOffset;
-
-                previousSampleValue = nextSampleValue;
-
-                /* Read the next sample value */
-
-                if (numberOfSamplesRead < maximumNumberOfSamplesToRead && numberOfSamplesRead < totalNumberOfSamples + 1) {
-
-                    nextSampleValue = readSampleValue();
-
-                }
-
-                /* Update the next sample offset */
-
-                nextSampleOffset += 1 / interval.sampleRate;
+                inputBufferIndex = 0;
 
             }
 
-            /* Calculate the interpolated sample value */
-
-            const interpolatedSampleValue = Math.round(previousSampleValue + (currentOffset - previousSampleOffset) / (nextSampleOffset - previousSampleOffset) * (nextSampleValue - previousSampleValue));
-
-            /* Write the sample value */
-
-            writeSampleValue(interpolatedSampleValue);
+            return sampleValue;
 
         }
 
-        /* Read on to next sample */
+        /* Function to write sample value */
 
-        while (numberOfSamplesRead < maximumNumberOfSamplesToRead && numberOfSamplesRead < totalNumberOfSamples + 1) {
+        function writeSampleValue (value) {
 
-            previousSampleValue = nextSampleValue;
+            writeInt16(syncOutputBuffer, outputBufferIndex * NUMBER_OF_BYTES_IN_SAMPLE, value);
 
-            nextSampleValue = readSampleValue();
+            numberOfSamplesWritten += 1;
 
-        }
+            outputBufferIndex += 1;
 
-        /* Callback with progress */
+            if (outputBufferIndex === FILE_BUFFER_SIZE / NUMBER_OF_BYTES_IN_SAMPLE) {
 
-        const newProgress = Math.round(100 * numberOfSamplesWritten / numberOfSamplesToWrite);
+                fs.writeSync(fo, syncOutputBuffer, 0, FILE_BUFFER_SIZE, null);
 
-        if (newProgress > progress) {
+                outputBufferIndex = 0;
 
-            if (callback) callback(newProgress);
-
-            progress = newProgress;
+            }
 
         }
 
+        /* Set up initial values */
+
+        let nextSampleValue = readSampleValue();
+
+        let previousSampleValue = nextSampleValue;
+
+        totalNumberOfSamples = firstSampleIsBeforeFirstInterval ? 1 : 0;
+
+        if (firstSampleIsBeforeFirstInterval) nextSampleValue = readSampleValue();
+
+        /* Iterate through intervals */
+
+        numberOfSeconds = 0;
+
+        let indexOfNextOutputFile = 1;
+
+        for (let i = 0; i < numberOfIntervals; i += 1) {
+
+            const interval = intervals[i];
+
+            totalNumberOfSamples += interval.numberOfSamples;
+
+            let nextSampleOffset = interval.firstSampleGap / MICROSECONDS_IN_SECOND;
+
+            let previousSampleOffset = nextSampleOffset - sampleInterval / MICROSECONDS_IN_SECOND;
+
+            const timeInterval = interval.timeInterval;
+
+            const numberOfSamples = timeInterval * targetSampleRate;
+
+            for (let j = 0; j < timeInterval; j += 1) {
+
+                for (let k = 0; k < targetSampleRate; k += 1) {
+            
+                    const currentOffset = (j * targetSampleRate + k) / numberOfSamples * timeInterval;
+
+                    while (currentOffset > nextSampleOffset) {
+
+                        /* Update previous sample values */
+
+                        previousSampleOffset = nextSampleOffset;
+
+                        previousSampleValue = nextSampleValue;
+
+                        /* Read the next sample value */
+
+                        if (numberOfSamplesRead < maximumNumberOfSamplesToRead && numberOfSamplesRead < totalNumberOfSamples + 1) {
+
+                            nextSampleValue = readSampleValue();
+
+                        }
+
+                        /* Update the next sample offset */
+
+                        nextSampleOffset += 1 / interval.sampleRate;
+
+                    }
+
+                    /* Calculate the interpolated sample value */
+
+                    const interpolatedSampleValue = Math.round(previousSampleValue + (currentOffset - previousSampleOffset) / (nextSampleOffset - previousSampleOffset) * (nextSampleValue - previousSampleValue));
+
+                    /* Write the sample value */
+
+                    writeSampleValue(interpolatedSampleValue);
+
+                }
+
+                /* Check if a new output file is required */
+
+                numberOfSeconds += 1;
+
+                if (indexOfNextOutputFile < numberOfFiles && numberOfSeconds == outputFiles[indexOfNextOutputFile].seconds) {
+
+                    /* Flush the output file */
+
+                    if (outputBufferIndex > 0) {
+
+                        fs.writeSync(fo, syncOutputBuffer, 0, outputBufferIndex * NUMBER_OF_BYTES_IN_SAMPLE, null);
+
+                        outputBufferIndex = 0;
+                
+                    }
+
+                    /* Write the GUANO */
+
+                    if (guano) {
+
+                        guanoHandler.writeGuano(syncOutputBuffer, guano);
+
+                        fs.writeSync(fo, syncOutputBuffer, 0, guano.size, null);
+
+                    }
+
+                    /* Close the output file */
+
+                    fs.closeSync(fo);
+
+                    /* Update the header */
+
+                    wavHandler.updateSizes(header, guano, outputFiles[indexOfNextOutputFile].samples * NUMBER_OF_BYTES_IN_SAMPLE);
+
+                    const comment = 'Synchronised from ' + path.basename(inputPath) + ' as file ' + outputFiles[indexOfNextOutputFile].number + ' of ' + numberOfFiles + '.';
+
+                    wavHandler.updateComment(header, comment);
+
+                    wavHandler.writeHeader(headerBuffer, header);
+
+                    /* Update file name */
+
+                    const newOutputFilename = outputFilename.replace(FILENAME_TIMESTAMP_REGEX, formatFilenameTimestamp(outputFiles[indexOfNextOutputFile].timestamp));
+
+                    /* Open the output file and write the header */
+
+                    fo = fs.openSync(path.join(outputPath, newOutputFilename), 'w');
+
+                    fs.writeSync(fo, headerBuffer, 0, header.size, null);
+
+                    /* Update GUANO */
+
+                    if (guano) {
+
+                        const newContents = guano.contents.replace(GUANO_TIMESTAMP_REGEX, formatGuanoTimestamp(outputFiles[indexOfNextOutputFile].timestamp));
+
+                        guanoHandler.updateContents(guano, newContents);
+
+                    }
+
+                    /* Increment next file index */
+
+                    indexOfNextOutputFile += 1;
+
+                }
+
+            }
+
+            /* Read on to next sample */
+
+            while (numberOfSamplesRead < maximumNumberOfSamplesToRead && numberOfSamplesRead < totalNumberOfSamples + 1) {
+
+                previousSampleValue = nextSampleValue;
+
+                nextSampleValue = readSampleValue();
+
+            }
+
+            /* Callback with progress */
+
+            const newProgress = Math.round(100 * numberOfSamplesWritten / numberOfSamplesToWrite);
+
+            if (newProgress > progress) {
+
+                if (callback) callback(newProgress);
+
+                progress = newProgress;
+
+            }
+
+        }
+
+        /* Flush the output buffer */
+
+        if (outputBufferIndex > 0) {
+
+            fs.writeSync(fo, syncOutputBuffer, 0, outputBufferIndex * NUMBER_OF_BYTES_IN_SAMPLE, null);
+
+        }
+
+        /* Write the GUANO */
+
+        if (guano) {
+
+            guanoHandler.writeGuano(syncOutputBuffer, guano);
+
+            fs.writeSync(fo, syncOutputBuffer, 0, guano.size, null);
+
+        }
+
+        /* Close the output file */
+
+        fs.closeSync(fo);
+
+    } catch (e) {
+
+        return {
+            success: false,
+            error: 'An error occurred while synchronising files. '
+        };
+
     }
-
-    /* Flush the output buffer */
-
-    if (outputBufferIndex > 0) {
-
-        fs.writeSync(fo, syncOutputBuffer, 0, outputBufferIndex * NUMBER_OF_BYTES_IN_SAMPLE, null);
-
-    }
-
-    /* Write the GUANO */
-
-    if (guano) {
-
-        guanoHandler.writeGuano(syncOutputBuffer, guano);
-
-        fs.writeSync(fo, syncOutputBuffer, 0, guano.size, null);
-
-    }
-
-    /* Make last progress callback */
 
     if (callback && progress < 100) callback(100);
 
-    /* Close both files */
+    /* Close the input file */
 
     fs.closeSync(fi);
-
-    fs.closeSync(fo);
 
     /* Return success */
 

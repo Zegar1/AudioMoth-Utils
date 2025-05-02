@@ -21,7 +21,7 @@ audiomothUtils.expand(inputPath, outputPath, prefix, expansionType, maximumFileD
 
 To be identified as an AudioMoth T.WAV file, a recording must fit the regex `/^([0-9A-F]{16}_)?((\d{8}_)?\d{6})T\.WAV$/` and have the correct WAV header comment.
 
-Note that all the functions in this library return an object with a boolean indicating success, and a string describing any errors that have occured. For example, in the event that an input file could not be opened, the following object is returned.
+Note that all the functions in this library return an object with a boolean indicating success, and a string describing any errors that have occurred. For example, in the event that an input file could not be opened, the following object is returned.
 
 ```javascript
 {

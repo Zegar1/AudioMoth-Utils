@@ -83,7 +83,7 @@ const TEMPERATURE_REGEX = /(-?\d+\.\d)C/;
 
 /* Alignment constants */
 
-const TIME_OFFSET_MULTIPLIER = 10;
+const TIME_OFFSET_MULTIPLIER = 100;
 
 const SAMPLE_RATE_CORRECTION = 2 / 48000000; 
 
@@ -519,7 +519,7 @@ function finalise (outputPath) {
 
             line += currrentFix.timeOffset < 0 ? '-' : '';
 
-            line += Math.floor(Math.abs(currrentFix.timeOffset) / TIME_OFFSET_MULTIPLIER) + '.' + Math.abs(currrentFix.timeOffset) % TIME_OFFSET_MULTIPLIER + ',';
+            line += Math.floor(Math.abs(currrentFix.timeOffset) / TIME_OFFSET_MULTIPLIER) + '.' + digits(Math.abs(currrentFix.timeOffset) % TIME_OFFSET_MULTIPLIER, 2) + ',';
 
             line += Math.floor(currrentFix.sampleRate / MILLIHERTZ_IN_HERTZ) + '.' + digits(currrentFix.sampleRate % MILLIHERTZ_IN_HERTZ, 3) + ',,,,,,,\r\n';
 
@@ -551,7 +551,7 @@ function finalise (outputPath) {
 
                 line += currentRecording.timeOffset < 0 ? '-' : '';
     
-                line += Math.floor(Math.abs(currentRecording.timeOffset) / TIME_OFFSET_MULTIPLIER) + '.' + Math.abs(currentRecording.timeOffset) % TIME_OFFSET_MULTIPLIER + ',';
+                line += Math.floor(Math.abs(currentRecording.timeOffset) / TIME_OFFSET_MULTIPLIER) + '.' + digits(Math.abs(currentRecording.timeOffset) % TIME_OFFSET_MULTIPLIER, 2) + ',';
                     
                 line += Math.floor(currentRecording.sampleRateStart / MILLIHERTZ_IN_HERTZ) + '.' + digits(currentRecording.sampleRateStart % MILLIHERTZ_IN_HERTZ, 3) + ',';
 

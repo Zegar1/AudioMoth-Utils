@@ -18,8 +18,7 @@ const SYNC = 3;
 const regexes = [
     /^([A-Za-z-_0-9]+_)?(\d{8}_\d{6})(_SYNC)?\.WAV$/,
     /^([A-Za-z-_0-9]+_)?(\d{8}_\d{6})((_\d{3})|(_SYNC))?\.WAV$/,
-    // ZMODYFIKOWANY REGEX - dodano grupę dla prefiksu karty (np. E08_)
-    /^([A-Z]\d{2}_)?([0-9A-F]{16}_)?((\d{8}_)?\d{6})T\.WAV$/,
+    /^([A-Za-z-_0-9]+_)?([0-9A-F]{16}_)?((\d{8}_)?\d{6})T\.WAV$/,
     /^([0-9A-F]{16}_)?(\d{8}_\d{6})\.WAV$/
 ];
 
@@ -60,21 +59,19 @@ function checkFilenameAgainstHeader (type, filename, comment, deviceID) {
 
     let devicePrefix = '';
 
-    let cardPrefix = '';  // NOWE: prefiks karty
-
     let expandHasDatePrefix = false;
 
     if (type === EXPAND) {
 
-        cardPrefix = matches[1] || '';           // NOWE: grupa 1 = prefiks karty (E08_)
+        const userPrefix = matches[1] || '';
 
-        devicePrefix = matches[2] || '';         // grupa 2 = device ID (hex)
+        devicePrefix = matches[2] || '';
 
-        originalTimestring = matches[3];         // grupa 3 = timestring
+        existingPrefix = userPrefix + devicePrefix;
 
-        expandHasDatePrefix = Boolean(matches[4]); // grupa 4 = data prefix
+        originalTimestring = matches[3];
 
-        existingPrefix = cardPrefix;  // ZMIENIONE: tylko prefiks karty bez devicePrefix
+        expandHasDatePrefix = Boolean(matches[4]);
 
     } else {
 
